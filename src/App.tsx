@@ -15,6 +15,8 @@ const App = () => {
 	// State
 	const [activeTab, setActiveTab] = useState("books")
 	const [searchTerm, setSearchTerm] = useState("")
+	const [authors, setAuthors] = useState<Author[]>([])
+	const [books, setBooks] = useState<Book[]>([])
 
 	const handleAddAuthor = (author: Author) => {
 		console.log("New author:", author)

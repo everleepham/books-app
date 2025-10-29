@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react"
 import type { Author } from "../../types/Authors"
 import type { Book } from "../../types/Book"
+import { searchBooksByTitle } from "../../services/googleBooksService"
+import BookSearchResults from "../BookSearchResults"
 
 
 interface AddBookFormProps {
@@ -16,10 +18,14 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 		isbn: "",
 		publishedYear: new Date().getFullYear(),
 		description: "",
+		pages: 0,
 		coverUrl: "",
 	})
 
 	const [errors, setErrors] = useState<Partial<Record<keyof Book, string>>>({})
+	const [searchResults, setSearchResults] = useState<Book[]>([])
+	const [isSearching, setIsSearching] = useState(false)
+	const [isbnNotFound, setIsbnNotFound] = useState(false)
 
 	const handleChange = (
 		e: React.ChangeEvent<
@@ -27,6 +33,7 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 		>
 	) => {
 		const { name, value } = e.target
+
 		setFormData((prev) => ({
 			...prev,
 			[name]:
@@ -34,47 +41,70 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 					? parseInt(value) || 0
 					: value,
 		}))
-		// Clear error when user starts typing
+
 		if (errors[name as keyof Book]) {
 			setErrors((prev) => ({ ...prev, [name]: "" }))
+			setIsbnNotFound(false)
+		}
+
+		// Search for books by title asynchronously
+		if (name === "title" && value.length > 2) {
+			setIsSearching(true)
+			searchBooksByTitle(value)
+				.then((books) => setSearchResults(books))
+				.catch((error) => {
+					console.error(error)
+					setSearchResults([])
+				})
+				.finally(() => setIsSearching(false))
+		} else if (name === "title" && value.length <= 2) {
+			setSearchResults([])
 		}
 	}
+
+	
+	const handleSetBook = (book: Book) => {
+		setFormData((prev) => ({
+			...prev,
+			title: book.title,
+			description: book.description || prev.description,
+			coverUrl: book.coverUrl || prev.coverUrl,
+			publishedYear: book.publishedYear || prev.publishedYear,
+			isbn: book.isbn || prev.isbn,
+			authorId: book.authorId || 0, 
+		}))
+	
+		if (!book.authorId) {
+			setErrors((prev) => ({
+				...prev,
+				authorId: "No author found for this book. Please select manually.",
+			}))
+		}
+		setSearchResults([])
+	}
+	
 
 	const validate = (): boolean => {
 		const newErrors: Partial<Record<keyof Book, string>> = {}
 
-		if (!formData.title.trim()) {
-			newErrors.title = "Title is required"
-		}
-
-		if (!formData.authorId || formData.authorId === 0) {
+		if (!formData.title.trim()) newErrors.title = "Title is required"
+		if (!formData.authorId || formData.authorId === 0)
 			newErrors.authorId = "Please select an author"
-		}
-
-		if (!formData.isbn.trim()) {
-			newErrors.isbn = "ISBN is required"
-		} else if (!/^[0-9-]+$/.test(formData.isbn)) {
+		if (!formData.isbn.trim()) newErrors.isbn = "ISBN is required"
+		else if (!/^[0-9-]+$/.test(formData.isbn))
 			newErrors.isbn = "ISBN should only contain numbers and hyphens"
-		}
-
 		if (
 			!formData.publishedYear ||
 			formData.publishedYear < 1000 ||
 			formData.publishedYear > new Date().getFullYear()
-		) {
+		)
 			newErrors.publishedYear = "Please enter a valid publication year"
-		}
-
-		if (!formData.description.trim()) {
+		if (!formData.description.trim())
 			newErrors.description = "Description is required"
-		}
-
-		if (!formData.coverUrl.trim()) {
-			newErrors.coverUrl = "Cover URL is required"
-		} else if (!/^https?:\/\/.+/.test(formData.coverUrl)) {
+		if (!formData.coverUrl.trim()) newErrors.coverUrl = "Cover URL is required"
+		else if (!/^https?:\/\/.+/.test(formData.coverUrl))
 			newErrors.coverUrl =
 				"Please enter a valid URL (starting with http:// or https://)"
-		}
 
 		setErrors(newErrors)
 		return Object.keys(newErrors).length === 0
@@ -82,16 +112,15 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 
 	const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
-
 		if (validate()) {
 			onSubmit(formData)
-			// Reset form after successful submission
 			setFormData({
 				title: "",
 				authorId: 0,
 				isbn: "",
 				publishedYear: new Date().getFullYear(),
 				description: "",
+				pages: 0,
 				coverUrl: "",
 			})
 			setErrors({})
@@ -105,10 +134,7 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 			<form onSubmit={handleSubmit} className="space-y-4">
 				{/* Title Input */}
 				<div>
-					<label
-						htmlFor="title"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
 						Title *
 					</label>
 					<input
@@ -117,22 +143,60 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						name="title"
 						value={formData.title}
 						onChange={handleChange}
-						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-							errors.title ? "border-red-500" : "border-gray-300"
-						}`}
+						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.title ? "border-red-500" : "border-gray-300"
+							}`}
 						placeholder="Enter book title"
 					/>
 					{errors.title && (
 						<p className="mt-1 text-sm text-red-600">{errors.title}</p>
 					)}
+
+					<BookSearchResults
+						searchResults={searchResults}
+						authors={authors}
+						onSelectBook={(book) =>
+							setFormData((prev) => ({
+								...prev,
+								title: book.title,
+								isbn: book.isbn,
+								publishedYear: book.publishedYear,
+								description: book.description,
+								coverUrl: book.coverUrl,
+							}))
+						}
+						onClearResults={() => setSearchResults([])}
+					/>
+
+					{/* Search results */}
+					{isSearching && <p className="mt-2 text-sm text-gray-500">Searching...</p>}
+					{searchResults.length > 0 && (
+						<ul className="mt-2 border-t border-gray-200 pt-2 max-h-40 overflow-y-auto">
+							{searchResults.map((book) => (
+								<li
+									key={book.isbn}
+									className="py-1 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 px-2 rounded"
+									onClick={() => {
+										setFormData((prev) => ({
+											...prev,
+											title: book.title,
+											isbn: book.isbn,
+											publishedYear: book.publishedYear,
+											description: book.description,
+											coverUrl: book.coverUrl,
+										}))
+										setSearchResults([])
+									}}
+								>
+									{book.title} — {book.isbn}
+								</li>
+							))}
+						</ul>
+					)}
 				</div>
 
 				{/* Author Select */}
 				<div>
-					<label
-						htmlFor="authorId"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="authorId" className="block text-sm font-medium text-gray-700 mb-1">
 						Author *
 					</label>
 					<select
@@ -140,9 +204,8 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						name="authorId"
 						value={formData.authorId}
 						onChange={handleChange}
-						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-							errors.authorId ? "border-red-500" : "border-gray-300"
-						}`}
+						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.authorId ? "border-red-500" : "border-gray-300"
+							}`}
 					>
 						<option value={0}>Select an author</option>
 						{authors.map((author) => (
@@ -156,14 +219,10 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 					)}
 				</div>
 
-				{/* ISBN and Published Year in a grid */}
+				{/* ISBN and Published Year */}
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-					{/* ISBN Input */}
 					<div>
-						<label
-							htmlFor="isbn"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
+						<label htmlFor="isbn" className="block text-sm font-medium text-gray-700 mb-1">
 							ISBN *
 						</label>
 						<input
@@ -172,22 +231,15 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 							name="isbn"
 							value={formData.isbn}
 							onChange={handleChange}
-							className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-								errors.isbn ? "border-red-500" : "border-gray-300"
-							}`}
+							className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.isbn ? "border-red-500" : "border-gray-300"
+								}`}
 							placeholder="e.g., 978-0-123456-78-9"
 						/>
-						{errors.isbn && (
-							<p className="mt-1 text-sm text-red-600">{errors.isbn}</p>
-						)}
+						{errors.isbn && <p className="mt-1 text-sm text-red-600">{errors.isbn}</p>}
 					</div>
 
-					{/* Published Year Input */}
 					<div>
-						<label
-							htmlFor="publishedYear"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
+						<label htmlFor="publishedYear" className="block text-sm font-medium text-gray-700 mb-1">
 							Published Year *
 						</label>
 						<input
@@ -198,25 +250,19 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 							onChange={handleChange}
 							min="1000"
 							max={new Date().getFullYear()}
-							className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-								errors.publishedYear ? "border-red-500" : "border-gray-300"
-							}`}
+							className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.publishedYear ? "border-red-500" : "border-gray-300"
+								}`}
 							placeholder="e.g., 2023"
 						/>
 						{errors.publishedYear && (
-							<p className="mt-1 text-sm text-red-600">
-								{errors.publishedYear}
-							</p>
+							<p className="mt-1 text-sm text-red-600">{errors.publishedYear}</p>
 						)}
 					</div>
 				</div>
 
-				{/* Description Input */}
+				{/* Description */}
 				<div>
-					<label
-						htmlFor="description"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
 						Description *
 					</label>
 					<textarea
@@ -225,9 +271,8 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						value={formData.description}
 						onChange={handleChange}
 						rows={4}
-						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-							errors.description ? "border-red-500" : "border-gray-300"
-						}`}
+						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${errors.description ? "border-red-500" : "border-gray-300"
+							}`}
 						placeholder="Enter a brief description of the book"
 					/>
 					{errors.description && (
@@ -235,12 +280,9 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 					)}
 				</div>
 
-				{/* Cover URL Input */}
+				{/* Cover URL */}
 				<div>
-					<label
-						htmlFor="coverUrl"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="coverUrl" className="block text-sm font-medium text-gray-700 mb-1">
 						Cover Image URL *
 					</label>
 					<input
@@ -249,14 +291,12 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						name="coverUrl"
 						value={formData.coverUrl}
 						onChange={handleChange}
-						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-							errors.coverUrl ? "border-red-500" : "border-gray-300"
-						}`}
+						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.coverUrl ? "border-red-500" : "border-gray-300"
+							}`}
 						placeholder="https://example.com/cover.jpg"
 					/>
-					{errors.coverUrl && (
-						<p className="mt-1 text-sm text-red-600">{errors.coverUrl}</p>
-					)}
+					{errors.coverUrl && <p className="mt-1 text-sm text-red-600">{errors.coverUrl}</p>}
+
 					{formData.coverUrl && !errors.coverUrl && (
 						<div className="mt-2">
 							<p className="text-xs text-gray-500 mb-1">Preview:</p>

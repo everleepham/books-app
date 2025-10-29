@@ -2,6 +2,7 @@ export type Book = {
 	id?: number
 	title: string
 	authorId: number
+	pages?: number
 	isbn: string
 	publishedYear: number
 	description: string
