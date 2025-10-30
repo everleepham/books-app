@@ -1,15 +1,15 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { BookOpen } from "lucide-react"
 import BookCard from "./components/BookCard"
 import AuthorCard from "./components/AuthorCard"
 import SearchBar from "./components/SearchBar"
-import { staticBooks, staticAuthors } from "./mockData/staticData"
 import AddAuthorForm from "./components/tabs/AddAuthorForm"
-import type { Author } from "./types/Authors"
 import AddBookForm from "./components/tabs/AddBookForm"
-import type { Book } from "./types/Book"
-
 import NavigationTabs from "./components/NavogationTabs"
+import type { Author } from "./types/Authors"
+import type { Book } from "./types/Book"
+import { authorsService } from "./services/authorsService"
+import { booksService } from "./services/booksService"
 
 const App = () => {
 	// State
@@ -18,31 +18,57 @@ const App = () => {
 	const [authors, setAuthors] = useState<Author[]>([])
 	const [books, setBooks] = useState<Book[]>([])
 
-	const handleAddAuthor = (author: Author) => {
-		console.log("New author:", author)
-		// Here you would typically:
-		// - Call your API to save the author
-		// - Update your state
-		// - Show a success message
+	// Fetch data on mount
+	useEffect(() => {
+		const fetchData = async () => {
+			try {
+				const [authorsData, booksData] = await Promise.all([
+					authorsService.getAllAuthors(),
+					booksService.getAllBooks(),
+				])
+				setAuthors(authorsData)
+				setBooks(booksData)
+			} catch (err) {
+				console.error("Failed to fetch data:", err)
+			}
+		}
+		fetchData()
+	}, [])
+
+	// Handlers
+	const handleAddAuthor = async (author: Omit<Author, "id">) => {
+		try {
+			const created = await authorsService.createAuthor(author)
+			setAuthors((prev) => [...prev, created])
+			alert(`Author "${created.name}" added successfully!`)
+			setActiveTab("authors")
+		} catch (err) {
+			console.error(err)
+			alert("Failed to create author")
+		}
 	}
 
-	const handleAddBook = (book: Book) => {
-		console.log("New book:", book)
-		// Here you would typically:
-		// - Call your API to save the book
-		// - Update your state
-		// - Show a success message
+	const handleAddBook = async (book: Omit<Book, "id">) => {
+		try {
+			const created = await booksService.createBook(book)
+			setBooks((prev) => [...prev, created])
+			alert(`Book "${created.title}" added successfully!`)
+			setActiveTab("books")
+		} catch (err) {
+			console.error(err)
+			alert("Failed to create book")
+		}
 	}
 
 	const getAuthorById = (authorId: number) => {
-		return staticAuthors.find((author) => author.id === authorId)
+		return authors.find((author) => author.id === authorId)
 	}
 
 	const getBookCountByAuthor = (authorId: number) => {
-		return staticBooks.filter((book) => book.authorId === authorId).length
+		return books.filter((book) => book.authorId === authorId).length
 	}
 
-	const filteredBooks = staticBooks.filter((book) => {
+	const filteredBooks = books.filter((book) => {
 		const author = getAuthorById(book.authorId)
 		return (
 			book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,7 +76,7 @@ const App = () => {
 		)
 	})
 
-	const filteredAuthors = staticAuthors.filter((author) =>
+	const filteredAuthors = authors.filter((author) =>
 		author.name.toLowerCase().includes(searchTerm.toLowerCase())
 	)
 
@@ -97,6 +123,7 @@ const App = () => {
 
 				{activeTab === "authors" && (
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						
 						{filteredAuthors.length > 0 ? (
 							filteredAuthors.map((author) => (
 								<AuthorCard
@@ -116,12 +143,15 @@ const App = () => {
 				{activeTab === "add-author" && (
 					<AddAuthorForm
 						onSubmit={handleAddAuthor}
-						onCancel={() => console.log("Cancelled")}
+						onCancel={() => setActiveTab("authors")}
 					/>
 				)}
 
 				{activeTab === "add-book" && (
-					<AddBookForm authors={staticAuthors} onSubmit={handleAddBook} />
+					<AddBookForm
+						authors={authors}
+						onSubmit={handleAddBook}
+					/>
 				)}
 			</main>
 		</div>

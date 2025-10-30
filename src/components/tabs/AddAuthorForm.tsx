@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from "react"
 import { countries } from "../../mockData/countries"
 import type { Author } from "../../types/Authors"
+import { authorsService } from "../../services/authorsService"
 
 interface AddAuthorFormProps {
-	onSubmit: (author: Author) => void
+	onSubmit: (author: Omit<Author, "id">) => Promise<void>
 	onCancel?: () => void
 }
 
-const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
-	const [formData, setFormData] = useState<Author>({
+const AddAuthorForm = ({ onCancel }: AddAuthorFormProps) => {
+	const [formData, setFormData] = useState<Omit<Author, "id">>({
 		name: "",
 		bio: "",
 		birthYear: new Date().getFullYear(),
@@ -29,7 +30,6 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 			...prev,
 			[name]: name === "birthYear" ? parseInt(value) || 0 : value,
 		}))
-		// Clear error when user starts typing
 		if (errors[name as keyof Author]) {
 			setErrors((prev) => ({ ...prev, [name]: "" }))
 		}
@@ -41,15 +41,12 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 		if (!formData.name.trim()) {
 			newErrors.name = "Name is required"
 		}
-
 		if (!formData.bio.trim()) {
 			newErrors.bio = "Bio is required"
 		}
-
 		if (!formData.country.trim()) {
 			newErrors.country = "Country is required"
 		}
-
 		if (
 			!formData.birthYear ||
 			formData.birthYear < 1000 ||
@@ -62,12 +59,16 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 		return Object.keys(newErrors).length === 0
 	}
 
-	const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 
-		if (validate()) {
-			onSubmit(formData)
-			// Reset form after successful submission
+		if (!validate()) return
+
+		try {
+			const createdAuthor = await authorsService.createAuthor(formData)
+			alert(`Author "${createdAuthor.name}" created with ID ${createdAuthor.id}`)
+
+			// Reset form
 			setFormData({
 				name: "",
 				bio: "",
@@ -75,6 +76,9 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 				country: "",
 			})
 			setErrors({})
+		} catch (error) {
+			console.error(error)
+			alert("Failed to create author")
 		}
 	}
 
@@ -85,10 +89,7 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 			<form onSubmit={handleSubmit} className="space-y-4">
 				{/* Name Input */}
 				<div>
-					<label
-						htmlFor="name"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
 						Name *
 					</label>
 					<input
@@ -102,17 +103,12 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 						}`}
 						placeholder="Enter author's full name"
 					/>
-					{errors.name && (
-						<p className="mt-1 text-sm text-red-600">{errors.name}</p>
-					)}
+					{errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
 				</div>
 
 				{/* Bio Input */}
 				<div>
-					<label
-						htmlFor="bio"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
+					<label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
 						Biography *
 					</label>
 					<textarea
@@ -126,19 +122,13 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 						}`}
 						placeholder="Enter a brief biography"
 					/>
-					{errors.bio && (
-						<p className="mt-1 text-sm text-red-600">{errors.bio}</p>
-					)}
+					{errors.bio && <p className="mt-1 text-sm text-red-600">{errors.bio}</p>}
 				</div>
 
-				{/* Birth Year and Country in a grid */}
+				{/* Birth Year & Country */}
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-					{/* Birth Year Input */}
 					<div>
-						<label
-							htmlFor="birthYear"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
+						<label htmlFor="birthYear" className="block text-sm font-medium text-gray-700 mb-1">
 							Birth Year *
 						</label>
 						<input
@@ -154,17 +144,11 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 							}`}
 							placeholder="e.g., 1950"
 						/>
-						{errors.birthYear && (
-							<p className="mt-1 text-sm text-red-600">{errors.birthYear}</p>
-						)}
+						{errors.birthYear && <p className="mt-1 text-sm text-red-600">{errors.birthYear}</p>}
 					</div>
 
-					{/* Country Input */}
 					<div>
-						<label
-							htmlFor="country"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
+						<label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
 							Country *
 						</label>
 						<select
@@ -183,9 +167,7 @@ const AddAuthorForm = ({ onSubmit, onCancel }: AddAuthorFormProps) => {
 								</option>
 							))}
 						</select>
-						{errors.country && (
-							<p className="mt-1 text-sm text-red-600">{errors.country}</p>
-						)}
+						{errors.country && <p className="mt-1 text-sm text-red-600">{errors.country}</p>}
 					</div>
 				</div>
 

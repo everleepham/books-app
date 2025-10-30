@@ -2,8 +2,6 @@ import { useState, type FormEvent } from "react"
 import type { Author } from "../../types/Authors"
 import type { Book } from "../../types/Book"
 import { searchBooksByTitle } from "../../services/googleBooksService"
-import BookSearchResults from "../BookSearchResults"
-
 
 interface AddBookFormProps {
 	authors: Author[]
@@ -25,64 +23,37 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 	const [errors, setErrors] = useState<Partial<Record<keyof Book, string>>>({})
 	const [searchResults, setSearchResults] = useState<Book[]>([])
 	const [isSearching, setIsSearching] = useState(false)
-	const [isbnNotFound, setIsbnNotFound] = useState(false)
 
 	const handleChange = (
-		e: React.ChangeEvent<
-			HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-		>
+		e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
 	) => {
 		const { name, value } = e.target
 
 		setFormData((prev) => ({
 			...prev,
-			[name]:
-				name === "authorId" || name === "publishedYear"
-					? parseInt(value) || 0
-					: value,
+			[name]: name === "authorId" || name === "publishedYear" ? parseInt(value, 10) || 0 : value
 		}))
 
 		if (errors[name as keyof Book]) {
 			setErrors((prev) => ({ ...prev, [name]: "" }))
-			setIsbnNotFound(false)
 		}
 
-		// Search for books by title asynchronously
 		if (name === "title" && value.length > 2) {
 			setIsSearching(true)
 			searchBooksByTitle(value)
-				.then((books) => setSearchResults(books))
-				.catch((error) => {
-					console.error(error)
-					setSearchResults([])
+				.then((books) => {
+					const unique = books.map((b, idx) => ({
+						...b,
+						isbn: b.isbn || `no-isbn-${idx}-${b.title}`,
+					}))
+					setSearchResults(unique)
 				})
+				.catch(() => setSearchResults([]))
 				.finally(() => setIsSearching(false))
 		} else if (name === "title" && value.length <= 2) {
 			setSearchResults([])
 		}
 	}
-
-	
-	const handleSetBook = (book: Book) => {
-		setFormData((prev) => ({
-			...prev,
-			title: book.title,
-			description: book.description || prev.description,
-			coverUrl: book.coverUrl || prev.coverUrl,
-			publishedYear: book.publishedYear || prev.publishedYear,
-			isbn: book.isbn || prev.isbn,
-			authorId: book.authorId || 0, 
-		}))
-	
-		if (!book.authorId) {
-			setErrors((prev) => ({
-				...prev,
-				authorId: "No author found for this book. Please select manually.",
-			}))
-		}
-		setSearchResults([])
-	}
-	
 
 	const validate = (): boolean => {
 		const newErrors: Partial<Record<keyof Book, string>> = {}
@@ -101,10 +72,10 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 			newErrors.publishedYear = "Please enter a valid publication year"
 		if (!formData.description.trim())
 			newErrors.description = "Description is required"
-		if (!formData.coverUrl.trim()) newErrors.coverUrl = "Cover URL is required"
+		if (!formData.coverUrl.trim())
+			newErrors.coverUrl = "Cover URL is required"
 		else if (!/^https?:\/\/.+/.test(formData.coverUrl))
-			newErrors.coverUrl =
-				"Please enter a valid URL (starting with http:// or https://)"
+			newErrors.coverUrl = "Please enter a valid URL (starting with http:// or https://)"
 
 		setErrors(newErrors)
 		return Object.keys(newErrors).length === 0
@@ -143,29 +114,10 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						name="title"
 						value={formData.title}
 						onChange={handleChange}
-						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.title ? "border-red-500" : "border-gray-300"
-							}`}
+						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.title ? "border-red-500" : "border-gray-300"}`}
 						placeholder="Enter book title"
 					/>
-					{errors.title && (
-						<p className="mt-1 text-sm text-red-600">{errors.title}</p>
-					)}
-
-					<BookSearchResults
-						searchResults={searchResults}
-						authors={authors}
-						onSelectBook={(book) =>
-							setFormData((prev) => ({
-								...prev,
-								title: book.title,
-								isbn: book.isbn,
-								publishedYear: book.publishedYear,
-								description: book.description,
-								coverUrl: book.coverUrl,
-							}))
-						}
-						onClearResults={() => setSearchResults([])}
-					/>
+					{errors.title && <p className="mt-1 text-sm text-red-600">{errors.title}</p>}
 
 					{/* Search results */}
 					{isSearching && <p className="mt-2 text-sm text-gray-500">Searching...</p>}
@@ -210,8 +162,9 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						<option value={0}>Select an author</option>
 						{authors.map((author) => (
 							<option key={author.id} value={author.id}>
-								{author.name}
+							{author.name}
 							</option>
+
 						))}
 					</select>
 					{errors.authorId && (
@@ -219,7 +172,7 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 					)}
 				</div>
 
-				{/* ISBN and Published Year */}
+				{/* ISBN & Year */}
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
 						<label htmlFor="isbn" className="block text-sm font-medium text-gray-700 mb-1">
@@ -252,7 +205,6 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 							max={new Date().getFullYear()}
 							className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.publishedYear ? "border-red-500" : "border-gray-300"
 								}`}
-							placeholder="e.g., 2023"
 						/>
 						{errors.publishedYear && (
 							<p className="mt-1 text-sm text-red-600">{errors.publishedYear}</p>
@@ -273,7 +225,6 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 						rows={4}
 						className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${errors.description ? "border-red-500" : "border-gray-300"
 							}`}
-						placeholder="Enter a brief description of the book"
 					/>
 					{errors.description && (
 						<p className="mt-1 text-sm text-red-600">{errors.description}</p>
@@ -312,7 +263,7 @@ const AddBookForm = ({ authors, onSubmit, onCancel }: AddBookFormProps) => {
 					)}
 				</div>
 
-				{/* Form Actions */}
+				{/* Actions */}
 				<div className="flex gap-3 pt-4">
 					<button
 						type="submit"
