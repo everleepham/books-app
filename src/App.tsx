@@ -106,15 +106,15 @@ const App = () => {
         {activeTab === "books" && (
         <div className="space-y-4 flex flex-col flex-wrap">
             {filteredBooks.length > 0 ? (
-            filteredBooks.map((book, index) => {
+            filteredBooks.map((book) => {
                 const author = getAuthorById(book.authorId);
                 if (!author) return null; 
                 return (
-<BookCard
-  key={book.id ?? Math.random()} // fallback key nếu id không có
-  book={book}
-  author={getAuthorById(book.authorId) ?? { name: "Unknown" }} // fallback author
-/>
+        <BookCard
+          key={book.id ?? Math.random()} 
+          book={book}
+          author={getAuthorById(book.authorId)} 
+        />
                 );
               })
             ) : (
