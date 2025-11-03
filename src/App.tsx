@@ -113,7 +113,7 @@ const App = () => {
         <BookCard
           key={book.id} 
           book={book}
-          author={getAuthorById(book.authorId)!} 
+          author={author} 
         />
                 );
               })
