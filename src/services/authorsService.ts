@@ -2,7 +2,7 @@ import type { Author } from '../types/Authors';
 
 
 const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || 'http://localhost:5095';
+  import.meta.env.VITE_API_BASE_URL || 'https://libraryy-anbqexbta3f6bvgm.swedencentral-01.azurewebsites.net';
 
 
 export const authorsService = {

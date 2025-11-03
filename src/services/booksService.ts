@@ -1,7 +1,7 @@
 import type { Book } from '../types/Book';
 
 const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || 'libraryy-anbqexbta3f6bvgm.swedencentral-01.azurewebsites.net';
+    import.meta.env.VITE_API_BASE_URL || 'https://libraryy-anbqexbta3f6bvgm.swedencentral-01.azurewebsites.net';
 
 
 export const booksService = {
